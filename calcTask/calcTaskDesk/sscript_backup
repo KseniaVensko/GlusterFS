@@ -1,0 +1,79 @@
+#!/bin/sh
+#dd if=/dev/zero of=br bs=512M count=1
+#sudo mkfs.ext4 br
+#sudo mkdir -p /tmp/mountpoint &&
+#sudo mount br2 /tmp/mountpoint -o loop && sudo mkdir -p /tmp/mountpoint/brick1
+VOLUME_BRICK_DIRECTORY="$HOME/gluster_s0058_brick"
+
+
+
+fs_nodes=( umu3 umu12 )
+declare -A fs_nodes_hash
+for constant in "${fs_nodes[@]}"; do
+    fs_nodes_hash[$constant]=1
+done
+
+if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
+#       sudo mkfs.ext4 -F  br > /dev/null
+#       sudo mkdir "$VOLUME_BRICK_DIRECTORY" && sudo mount -t ext4  br "$VOLUME_BRICK_DIRECTORY" -o loop && sudo mkdir "$VOLUME_BRICK_DIRECTORY/brick"
+
+        sudo mkdir "$VOLUME_BRICK_DIRECTORY"
+        echo "Create dir code is $?"
+        create_volume="sudo gluster volume create gluster_s0058_vol replica ${#fs_nodes[@]}"
+#       echo -e "I am $SLURMD_NODENAME\n"
+
+        for i in "${fs_nodes[@]}"; do
+#               echo -e "peer probe with $i\n"
+                sudo    gluster peer probe $i;
+                create_volume=${create_volume}" $i:$VOLUME_BRICK_DIRECTORY"
+        done;
+#       create_volume=${create_volume}" force";
+#       echo -e "on $SLURMD_NODENAME create volume $create_volume\n";
+
+        if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
+                sudo gluster peer status > "$HOME/peerstat";
+                 $create_volume;
+                echo "Code create volume is $?";
+                 sudo    gluster volume start gluster_s0058_vol
+                echo "Code Start volume id $?"
+        else
+                echo "sleep 10 sec"
+                sleep 10;
+        fi;
+
+
+        sleep 2;
+
+        if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
+                sudo gluster --mode=script volume stop gluster_s0058_vol
+                sudo gluster --mode=script volume delete gluster_s0058_vol
+                for i in "${fs_nodes[@]}"; do
+                        sudo gluster peer detach $i;
+           	done;
+        else
+                 sleep 30;
+                echo "sleep 30 sec"
+        fi;
+
+#       for i in "${fs_nodes[@]}"; do
+#               sudo gluster peer detach $i;
+#       done
+
+#       sudo umount "$VOLUME_BRICK_DIRECTORY"
+        sudo rm -r "$VOLUME_BRICK_DIRECTORY"
+        echo lala
+
+else                                                    # if it is Calc clusters
+        sleep 6;
+#       sudo mount -t glusterfs  "${fs_nodes[0]}:/gluster_s0058_vol" "$HOME/gluster_client/"
+#       FILE="$HOME/gluster_client/file"
+#       for j in 1 2 3; do
+#               touch $FILE && break;
+#               sleep 3;
+#       done
+#       echo 4 > $FILE
+#       echo "Should not be here"
+#       cat $FILE
+
+fi
+

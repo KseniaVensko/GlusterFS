@@ -1,0 +1,36 @@
+#!/bin/sh
+INPUT_FILE="in"
+OUTPUT_FILE="out"
+files=( umu1 umu2 );
+count=${#files[@]};
+condition="";
+
+for i in "${files[@]}"; do
+	condition=${condition}" [ -f "$i.out" ] &&";
+done;
+condition=${condition}" break";
+
+lines=`wc -l < $INPUT_FILE`;
+
+let result=$[$lines+$count-1]/$count
+
+let i=0;
+declare current_file;
+while read line; do
+	if [[ $i%$result -eq 0 ]]; then
+		current_file="${files[$i/$result]}.in"
+ 	fi;
+	((i++))
+	echo "$line" >> $current_file
+done < $INPUT_FILE
+
+while true; do
+	sleep 2;
+	eval "$condition";
+done;	
+
+for out_file in "${files[@]}"; do
+	while read line; do
+		echo "$line" >> "$OUTPUT_FILE"
+	done < "$out_file.out"
+done;
