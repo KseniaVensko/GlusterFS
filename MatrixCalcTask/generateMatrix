@@ -2,9 +2,9 @@
 
 for i in {1..22}; do
 	for j in {1..18}; do
-		echo -n "$j" >> build/Matrix;
-		if [ $j -eq 18 ]; then echo >> build/Matrix;
-		else echo -n " " >> build/Matrix
+		echo -n "$j" >> "$1";
+		if [ $j -eq 18 ]; then echo >> "$1";
+		else echo -n " " >> "$1";
 		fi;
 	done;
 done;

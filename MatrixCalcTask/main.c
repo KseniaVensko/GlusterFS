@@ -6,7 +6,7 @@
 #define COLUMNS 18
 #define ROWS 22
 
-// Usage: ./MatrixCalcTask inputMatrixFile, rank (rank is power of 2)
+// Usage: ./MatrixCalcTask inputMatrixFile, outputMatrixFile, rank (rank is power of 2)
 
 void readMatrix(FILE* input, double** matrix) {
     for (int i = 0; i < ROWS; i++) {
@@ -48,6 +48,14 @@ void convertMatrix(double** matrix, int rank) {
                 }
             }
             average=count=0;
+        }
+    }
+}
+
+void addMatrix(double** matrix, double** current_matrix) {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLUMNS; j++) {
+            current_matrix[i][j] += matrix[i][j];
         }
     }
 }
@@ -108,7 +116,7 @@ int main(int argc, char *argv[])
         printf("%s %s : %s\n", "Cannot open input file", argv[1], strerror(errno));
         return 0;
     }
-    int rank = atoi(argv[2]);
+    int rank = atoi(argv[3]);
 
     if (grantLock(in)) {
         readMatrix(in, matrix);         // what if we broke here?
@@ -121,21 +129,35 @@ int main(int argc, char *argv[])
 
     convertMatrix(matrix, rank);
 
-    FILE* out = fopen(argv[1], "a+");
+    FILE* out = fopen(argv[2], "a+");
 
     if ( out == NULL ) {
-        printf("%s %s : %s\n", "Cannot open output file", argv[1], strerror(errno));
+        printf("%s %s : %s\n", "Cannot open output file", argv[2], strerror(errno));
         return 0;
     }
 
+    double** current_matrix = (double **) malloc(sizeof(double*) * ROWS);
+
+    for (int i = 0; i < ROWS; i++) {
+        current_matrix[i] = (double*) malloc(sizeof(double) * COLUMNS);
+    }
+
     if (grantLock(out)) {
-        writeMatrix(out, matrix);         // what if we broke here?
+        readMatrix(out, current_matrix);
+        addMatrix(matrix, current_matrix);
+        writeMatrix(out, current_matrix);         // what if we broke here?
         releaseLock(out);
     }
 
     if (fclose(out) == -1) {
         printf("Can not close input file");
     }
+
+    for (int i = 0; i < ROWS; i++) {
+        free(current_matrix[i]);
+    }
+
+    free(current_matrix);
 
     for (int i = 0; i < ROWS; i++) {
         free(matrix[i]);
