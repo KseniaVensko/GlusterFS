@@ -1,11 +1,14 @@
 #!/bin/sh
 VOLUME_BRICK_DIRECTORY="$HOME/gluster_s0058_brick"
+CLIENT_DIRECTORY="$HOME/gluster_client/"
 declare err=0;
 fs_nodes=( umu3 umu12 )
 declare -A fs_nodes_hash
 for constant in "${fs_nodes[@]}"; do
     fs_nodes_hash[$constant]=1
 done
+files=( umu1 umu2 );
+count=${#files[@]};
 
 #---------------------------------------------------------------
 #	Setting glusterfs up region
@@ -41,8 +44,7 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 
 	INPUT_FILE="in"
 	OUTPUT_FILE="out"
-	files=( umu1 umu2 );
-	count=${#files[@]};
+	
 	condition="";
 
 	for i in "${files[@]}"; do
@@ -100,13 +102,13 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 else
 	err=1;
 	for i in {1..5}; do
-       		sudo mount -t glusterfs  "${fs_nodes[0]}:/gluster_s0058_vol" "$HOME/gluster_client/"
+       		sudo mount -t glusterfs  "${fs_nodes[0]}:/gluster_s0058_vol" "$CLIENT_DIRECTORY"
 		err="$?";
 		[ "$err" == "0" ] && break;
 		sleep 5;
 	done;
 	[ "$err" != "0" ] && exit;	# не смогли примонтировать - выходим
 
-	./calcTask	
+	./calcTask	"$SLURMD_NODENAME.in" "$SLURMD_NODENAME.out"
 fi
 
