@@ -7,8 +7,8 @@ declare -A fs_nodes_hash
 for constant in "${fs_nodes[@]}"; do
     fs_nodes_hash[$constant]=1
 done
-files=( umu1 umu2 );
-count=${#files[@]};
+calc_nodes=( umu1 umu2 );
+count=${#calc_nodes[@]};
 
 #---------------------------------------------------------------
 #	Setting glusterfs up region
@@ -47,7 +47,7 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 	
 	condition="";
 
-	for i in "${files[@]}"; do
+	for i in "${calc_nodes[@]}"; do
         	condition=${condition}" [ -f "$i.out" ] &&";
 	done;
 	condition=${condition}" break";
@@ -60,7 +60,7 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 	declare current_file;
 	while read line; do
 	        if [[ $i%$result -eq 0 ]]; then
-        	        current_file="${files[$i/$result]}.in"
+        	        current_file="${calc_nodes[$i/$result]}.in"
 	        fi;
         	((i++))
 	        echo "$line" >> $current_file
@@ -71,7 +71,7 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 	        eval "$condition";
 	done;   
 
-	for out_file in "${files[@]}"; do
+	for out_file in "${calc_nodes[@]}"; do
 	        while read line; do
 	                echo "$line" >> "$OUTPUT_FILE"
         	done < "$out_file.out"
