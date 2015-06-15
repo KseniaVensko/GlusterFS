@@ -1,54 +1,90 @@
 #!/bin/sh
-VOLUME_BRICK_DIRECTORY="$HOME/gluster_s0058_brick"
-CLIENT_DIRECTORY="$HOME/gluster_client/"
+#Usage ./script input_file_for_calc_nodes
+HOST_DIRECTORY="/dev/shm"
+EXT4_BRICK="$HOST_DIRECTORY/br"
+VOLUME_BRICK_DIRECTORY="$HOST_DIRECTORY/gluster_s0058_brick"
+CLIENT_DIRECTORY="$HOME/gluster_client$SLURMD_NODENAME/"
+GLUSTER_BRICK="$VOLUME_BRICK_DIRECTORY/brick"
+GLUSTER_VOLUME="gluster_s0058_vol"
+STOP_FILE="$CLIENT_DIRECTORY/gluster_stop"
+INPUT_FILE="$1"
+OUTPUT_FILE="$HOME/gluster_out"
+
 declare err=0;
-fs_nodes=( umu3 umu12 )
+fs_nodes=( umu1 umu2 )
 declare -A fs_nodes_hash
 for constant in "${fs_nodes[@]}"; do
     fs_nodes_hash[$constant]=1
 done
-calc_nodes=( umu1 umu2 );
+calc_nodes=( umu3 umu5 );
 count=${#calc_nodes[@]};
 
-#---------------------------------------------------------------
-#	Setting glusterfs up region
-#---------------------------------------------------------------
 
-if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
-        sudo mkdir "$VOLUME_BRICK_DIRECTORY"
-	 echo "Create dir code is $?"
-        create_volume="sudo gluster volume create gluster_s0058_vol replica ${#fs_nodes[@]}"
+function clean {
+	    sudo rm -r "$GLUSTER_BRICK"
+		sudo umount "$VOLUME_BRICK_DIRECTORY"
+		sudo rm -r "$VOLUME_BRICK_DIRECTORY"
+		sudo umount "$EXT4_BRICK"
+		sudo rm "$EXT4_BRICK"
+}
 
-        for i in "${fs_nodes[@]}"; do
-                sudo    gluster peer probe $i;
-		[ "$?" != "0" ] && exit;
-                create_volume=${create_volume}" $i:$VOLUME_BRICK_DIRECTORY"
-        done;
+function glusterfs_nodes {
+	mkdir "$VOLUME_BRICK_DIRECTORY"
+	if [ "$?" != "0" ]; then
+		da=`date`
+		echo "mkdir $CLIENT_DIRECTORY $da"
+	fi
+
+	dd if=/dev/zero of="$EXT4_BRICK" bs=512M count=1 > /dev/null
+	sudo mkfs.ext4 -F "$EXT4_BRICK" > /dev/null
+	sudo mount "$EXT4_BRICK" "$VOLUME_BRICK_DIRECTORY" -o loop
+	[ "$?" != "0" ] && echo "not mount brick";
+
+	sudo mkdir "$GLUSTER_BRICK"
+	if [ "$?" != "0" ]; then
+		da=`date`
+		echo "mkdir $CLIENT_DIRECTORY $da"
+	fi
+    create_volume="sudo gluster volume create $GLUSTER_VOLUME replica ${#fs_nodes[@]}"
+
+    for i in "${fs_nodes[@]}"; do
+            sudo    gluster peer probe $i;
+			#[ "$?" != "0" ] && exit;
+            create_volume=${create_volume}" $i:$GLUSTER_BRICK"
+    done;
 #       create_volume=${create_volume}" force";
 
-        if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
-                 $create_volume;
-		[ "$?" != "0" ] && exit;		# что с остальными фс нодами?
-                sudo    gluster volume start gluster_s0058_vol
-		[ "$?" != "0" ] && exit;
-        else
+    if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
+      		sleep 10;
+            $create_volume;
+			[ "$?" != "0" ] && exit;		# что с остальными фс нодами?
+            sudo    gluster volume start "$GLUSTER_VOLUME"
+			[ "$?" != "0" ] && exit;
+    else
 		for i in {1..5}; do
 			#sudo gluster volume status 
 			sleep 5;
 		done;
-        fi;
+    fi;
 
 #--------------------------------------------------------------
 #	Giving task for calculating nodes and observing
 #-------------------------------------------------------------
-
-	INPUT_FILE="in"
-	OUTPUT_FILE="out"
 	
 	condition="";
 
+	[ -d "$CLIENT_DIRECTORY" ] && echo "Directory ex asdasdsdsdasdasdas $CLIENT_DIRECTORY"
+	mkdir "$CLIENT_DIRECTORY";
+	if [ "$?" != "0" ]; then
+		da=`date`
+		echo "mkdir $CLIENT_DIRECTORY $da"
+	fi
+	sudo mount -t glusterfs  "${fs_nodes[0]}:/$GLUSTER_VOLUME" "$CLIENT_DIRECTORY"
+
+	sudo chmod 777 "$CLIENT_DIRECTORY"
+if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
 	for i in "${calc_nodes[@]}"; do
-        	condition=${condition}" [ -f "$i.out" ] &&";
+        	condition=${condition}" [ -f "$CLIENT_DIRECTORY/$i.out" ] &&";
 	done;
 	condition=${condition}" break";
 
@@ -60,55 +96,83 @@ if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
 	declare current_file;
 	while read line; do
 	        if [[ $i%$result -eq 0 ]]; then
-        	        current_file="${calc_nodes[$i/$result]}.in"
+        	        current_file="$CLIENT_DIRECTORY/${calc_nodes[$i/$result]}.in"
 	        fi;
         	((i++))
 	        echo "$line" >> $current_file
 	done < $INPUT_FILE
 
 	while true; do
-	        sleep 2;
+	        sleep 10;
 	        eval "$condition";
 	done;   
 
 	for out_file in "${calc_nodes[@]}"; do
 	        while read line; do
 	                echo "$line" >> "$OUTPUT_FILE"
-        	done < "$out_file.out"
+        	done < "$CLIENT_DIRECTORY/$out_file.out"
 	done;
 
+	touch "$STOP_FILE";
+	sleep 40;
+else
+	while true; do
+		sleep 10;
+		[ -f "$STOP_FILE" ] && break;
+	done;
+fi;
+	sudo umount "$CLIENT_DIRECTORY"
+	rm -r "$CLIENT_DIRECTORY"
 #----------------------------------------------------------------------
 #	Region of terninating glusterfs and removing temp files
 #----------------------------------------------------------------------
+    if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
+	        sudo gluster --mode=script volume stop "$GLUSTER_VOLUME"
+            sudo gluster --mode=script volume delete "$GLUSTER_VOLUME"
+            for i in "${fs_nodes[@]}"; do
+                    sudo gluster peer detach $i;
+      		done;
+    else
+            sleep 40;
+            echo "sleep 40 sec"
+    fi;
 
-        if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
-                sudo gluster --mode=script volume stop gluster_s0058_vol
-                sudo gluster --mode=script volume delete gluster_s0058_vol
-                for i in "${fs_nodes[@]}"; do
-                        sudo gluster peer detach $i;
-           	done;
-        else
-                 sleep 30;
-                echo "sleep 30 sec"
-        fi;
+}
 
-        sudo rm -r "$VOLUME_BRICK_DIRECTORY"
-        echo lala
+#---------------------------------------------------------------
+#	Setting glusterfs up region
+#---------------------------------------------------------------
+
+if [[ ${fs_nodes_hash[$SLURMD_NODENAME]} ]]; then       # if it is FS clusters
+		glusterfs_nodes;
+        clean;
 
 #-----------------------------------------------------------------------
 #	Region for calculating nodes
 #-----------------------------------------------------------------------
 
 else
+	sleep 5;
+	mkdir "$CLIENT_DIRECTORY";
+	if [ "$?" != "0" ]; then
+		da=`date`
+		echo "mkdir $CLIENT_DIRECTORY $da"
+	fi
 	err=1;
 	for i in {1..5}; do
-       		sudo mount -t glusterfs  "${fs_nodes[0]}:/gluster_s0058_vol" "$CLIENT_DIRECTORY"
+       	sudo mount -t glusterfs "${fs_nodes[0]}:/$GLUSTER_VOLUME" "$CLIENT_DIRECTORY"
 		err="$?";
 		[ "$err" == "0" ] && break;
-		sleep 5;
+		sleep 10;
 	done;
-	[ "$err" != "0" ] && exit;	# не смогли примонтировать - выходим
-
-	./calcTask	"$SLURMD_NODENAME.in" "$SLURMD_NODENAME.out"
+	[ "$err" != "0" ] && echo "Client not mount" && exit;	# не смогли примонтировать - выходим
+	sudo chmod 777 "$CLIENT_DIRECTORY"
+	[ "$err" != "0" ] && exit;
+	sleep 10;
+	#./calcTask	"$CLIENT_DIRECTORY/$SLURMD_NODENAME.in" "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
+	#echo "5" >> "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
+	eval "$HOME/./a.out test"
+	sudo umount "$CLIENT_DIRECTORY"
+	rm -r "$CLIENT_DIRECTORY"
 fi
 
