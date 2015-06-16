@@ -3,7 +3,7 @@
 HOST_DIRECTORY="/dev/shm"
 EXT4_BRICK="$HOST_DIRECTORY/br"
 VOLUME_BRICK_DIRECTORY="$HOST_DIRECTORY/gluster_s0058_brick"
-CLIENT_DIRECTORY="$HOME/gluster_client$SLURMD_NODENAME/"
+CLIENT_DIRECTORY="$HOME/gluster_client$SLURMD_NODENAME"
 GLUSTER_BRICK="$VOLUME_BRICK_DIRECTORY/brick"
 GLUSTER_VOLUME="gluster_s0058_vol"
 STOP_FILE="$CLIENT_DIRECTORY/gluster_stop"
@@ -55,7 +55,7 @@ function glusterfs_nodes {
 #       create_volume=${create_volume}" force";
 
     if [ "$SLURMD_NODENAME" == "${fs_nodes[0]}" ]; then
-      		sleep 10;
+      		sleep 20;
             $create_volume;
 			[ "$?" != "0" ] && exit;		# что с остальными фс нодами?
             sudo    gluster volume start "$GLUSTER_VOLUME"
@@ -171,7 +171,7 @@ else
 	sleep 10;
 	#./calcTask	"$CLIENT_DIRECTORY/$SLURMD_NODENAME.in" "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
 	#echo "5" >> "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
-	eval "$HOME/./a.out test"
+	eval "$HOME/./a.out $CLIENT_DIRECTORY/test"
 	touch "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
 	sudo umount "$CLIENT_DIRECTORY"
 	rm -r "$CLIENT_DIRECTORY"
