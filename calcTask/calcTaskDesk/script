@@ -1,5 +1,5 @@
 #!/bin/sh
-#Usage ./script input_file_for_calc_nodes
+#Usage ./script input_file_for_calc_nodes exec_file
 HOST_DIRECTORY="/dev/shm"
 EXT4_BRICK="$HOST_DIRECTORY/br"
 VOLUME_BRICK_DIRECTORY="$HOST_DIRECTORY/gluster_s0058_brick"
@@ -9,6 +9,7 @@ GLUSTER_VOLUME="gluster_s0058_vol"
 STOP_FILE="$CLIENT_DIRECTORY/gluster_stop"
 INPUT_FILE="$1"
 OUTPUT_FILE="$HOME/gluster_out"
+EXEC_FILE="$2"
 
 declare err=0;
 fs_nodes=( umu1 umu2 )
@@ -171,7 +172,7 @@ else
 	sleep 10;
 	#./calcTask	"$CLIENT_DIRECTORY/$SLURMD_NODENAME.in" "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
 	#echo "5" >> "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
-	eval "$HOME/./a.out $CLIENT_DIRECTORY/test"
+	eval "$EXEC_FILE $CLIENT_DIRECTORY/test"
 	touch "$CLIENT_DIRECTORY/$SLURMD_NODENAME.out"
 	sudo umount "$CLIENT_DIRECTORY"
 	rm -r "$CLIENT_DIRECTORY"
